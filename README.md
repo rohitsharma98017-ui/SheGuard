@@ -418,8 +418,9 @@ This project is released for educational and women's safety initiatives. Use fre
 
 ## 👨‍💻 Author
 
-**Rohit Sharma**
+**Rohit Sharma and Sanchita adhikary**
 - GitHub: [@rohitsharma98017-ui](https://github.com/rohitsharma98017-ui)
+- Github: [@sanchitafrozen56-crypto](https://github.com/sanchitafrozen56-crypto)
 - Email: rohitsharma98017-ui@gmail.com
 
 ---
