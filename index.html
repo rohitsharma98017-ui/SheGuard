@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SheGuard | Smart Safety Wearable</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico">
+    <meta name="description" content="SheGuard – AI-powered women's safety wearable device with real-time GPS tracking, SOS alerts, and crime heatmaps.">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <!-- Socket.IO client for real-time updates -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #ff2e63;
+        }
+
+        * { box-sizing: border-box }
+
+        body {
+            margin: 0;
+            background: #050507;
+            color: #eaeaea;
+            font-family: Poppins, sans-serif;
+            overflow-x: hidden
+        }
+
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            top: 0;
+            left: 0;
+        }
+
+        header {
+            padding: 22px 8%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 46, 99, 0.2);
+            background: rgba(5, 5, 7, 0.9);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .logo { 
+            font-family: Orbitron; 
+            font-size: 24px; 
+            font-weight: 600;
+            letter-spacing: 2px; 
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(255, 46, 99, 0.5);
+        }
+
+        /* ─── AI Chatbot UI ─── */
+        #chat-wrapper {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #chat-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 46, 99, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-right: -10px;
+        }
+
+        #chat-btn:hover { transform: scale(1.1); }
+        #chat-btn.active { transform: rotate(90deg) scale(0.8); background: #333; }
+
+        #chat-window {
+            width: 380px;
+            height: 500px;
+            background: #0a0a0a;
+            border: 1px solid rgba(255, 46, 99, 0.2);
+            border-radius: 16px;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            margin-bottom: 70px;
+            position: absolute;
+            bottom: 0px;
+            right: 0px;
+            overflow: hidden;
+            animation: slideUp 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .chat-header {
+            background: linear-gradient(90deg, #1a1a1a, #0d0d0d);
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 46, 99, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--primary);
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) #111;
+        }
+
+        .msg {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        .msg-ai {
+            align-self: flex-start;
+            background: #222;
+            color: #eee;
+            border-bottom-left-radius: 2px;
+        }
+
+        .typing {
+            font-style: italic;
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+            display: none;
+        }
+
+        .chat-footer {
+            padding: 15px;
+            background: #0d0d0d;
+            border-top: 1px solid rgba(255, 46, 99, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        #chat-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        #chat-input:focus { border-color: var(--primary); }
+
+        #chat-send {
+            background: var(--primary);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+        nav a { color: #ccc; text-decoration: none; margin-left: 25px; font-size: 14px; transition:.2s }
+        nav a:hover { color: #ff2e63 }
+
+        .hero { text-align: center; padding: 120px 20px 80px }
+        .hero h1 { font-size: 64px; font-family: Orbitron; margin-bottom: 12px }
+        .glow { color: #ff2e63; text-shadow: 0 0 18px rgba(255,46,99,.9) }
+        .hero p { max-width: 720px; margin: auto; color: #aaa; line-height: 1.7 }
+
+        button {
+            padding: 14px 34px;
+            border: none;
+            border-radius: 30px;
+            font-size: 15px;
+            margin: 12px;
+            cursor: pointer;
+            transition: .3s
+        }
+        .primary { background: #ff2e63; color: white; box-shadow: 0 0 25px rgba(255,46,99,.5) }
+        .primary:hover { transform: scale(1.06) }
+        .secondary { background: #1c1c24; color: #ddd }
+        .secondary:hover { transform: scale(1.04) }
+
+        section { padding: 100px 8%; opacity: 0; transform: translateY(40px); transition: all .8s ease }
+        section.visible { opacity: 1; transform: translateY(0) }
+
+        .section-title { text-align: center; font-family: Orbitron; font-size: 36px; margin-bottom: 60px }
+
+        .product { display: flex; justify-content: center; margin-top: 60px }
+        .bracelet {
+            width: 210px; height: 210px; border-radius: 50%;
+            border: 8px solid #ff2e63;
+            animation: spin 10s linear infinite;
+            box-shadow: 0 0 35px rgba(255,46,99,.7)
+        }
+        @keyframes spin {
+            from { transform: rotateX(45deg) rotateY(0deg) }
+            to   { transform: rotateX(45deg) rotateY(360deg) }
+        }
+
+        #map { height: 430px; border-radius: 14px; border: 1px solid #222; box-shadow: 0 15px 40px rgba(0,0,0,.7) }
+        .map-label { text-align: center; margin-top: 14px; color: #888 }
+
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 30px }
+        .card { background: #101016; padding: 30px; border-radius: 12px; border: 1px solid #1e1e24; transition: .35s }
+        .card:hover { transform: translateY(-10px) scale(1.02); border-color: #ff2e63; box-shadow: 0 10px 30px rgba(255,46,99,.25) }
+        .card h3 { color: #ff2e63; margin-top: 0 }
+
+        .tech { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px }
+        .tech div { background: #121218; padding: 16px 26px; border-radius: 8px; border: 1px solid #24242d }
+
+        .demo { background: #101016; padding: 45px; border-radius: 12px; text-align: center; max-width: 650px; margin: auto; border: 1px solid #1f1f28 }
+
+        input, select {
+            width: 100%; padding: 12px; margin-top: 12px;
+            border-radius: 6px; border: 1px solid #222;
+            background: #0f0f14; color: white; font-family: Poppins, sans-serif
+        }
+
+        .app-preview { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap }
+        .phone { width: 170px; height: 320px; background: #0f0f14; border-radius: 25px; border: 2px solid #222; padding: 15px }
+        .screen { background: #08080c; height: 100%; border-radius: 15px; padding: 10px; color: #ff2e63; font-size: 12px }
+
+        footer { text-align: center; padding: 35px; border-top: 1px solid #1c1c1c; color: #777 }
+
+        .chatbot {
+            position: fixed; bottom: 25px; right: 25px;
+            background: #ff2e63; color: white; padding: 14px 18px;
+            border-radius: 25px; cursor: pointer; box-shadow: 0 0 20px rgba(255,46,99,.6);
+            z-index: 100; transition: .3s
+        }
+        .chatbot:hover { transform: scale(1.08) }
+
+        /* Status banner */
+        #status-banner {
+            display: none; position: fixed; top: 80px; left: 50%;
+            transform: translateX(-50%); z-index: 999;
+            background: #ff2e63; color: white; padding: 14px 28px;
+            border-radius: 30px; font-weight: 600; font-size: 15px;
+            box-shadow: 0 0 30px rgba(255,46,99,.8);
+            animation: fadeIn .4s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; top:60px } to { opacity:1; top:80px } }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;
+            padding: 20px; background: #0a0a10; border-bottom: 1px solid #1c1c1c
+        }
+        .stat { text-align: center }
+        .stat .val { font-family: Orbitron; font-size: 28px; color: #ff2e63 }
+        .stat .lbl { font-size: 12px; color: #666; margin-top: 4px }
+
+        /* Connection indicator */
+        #connection-dot {
+            display: inline-block; width: 10px; height: 10px;
+            border-radius: 50%; background: #555; margin-right: 6px;
+            transition: background .5s
+        }
+        #connection-dot.connected { background: #00ff88; box-shadow: 0 0 8px #00ff88 }
+
+        /* SOS pulse animation */
+        .sos-active { animation: sosPulse 1s ease-in-out infinite }
+        @keyframes sosPulse {
+            0%, 100% { box-shadow: 0 0 25px rgba(255,46,99,.5) }
+            50%       { box-shadow: 0 0 60px rgba(255,46,99,1), 0 0 120px rgba(255,46,99,.4) }
+        }
+
+        /* ─── LOGIN PORTAL STYLES ─── */
+        .login-portal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #050507 0%, #1a0a15 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .login-container {
+            background: rgba(15, 15, 20, 0.95);
+            border: 2px solid rgba(255, 46, 99, 0.3);
+            border-radius: 20px;
+            padding: 50px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(255, 46, 99, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .login-title {
+            font-family: Orbitron;
+            font-size: 32px;
+            color: var(--primary);
+            text-align: center;
+            margin: 0 0 5px 0;
+            text-shadow: 0 0 10px rgba(255, 46, 99, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: #aaa;
+            font-size: 13px;
+            margin: 0 0 30px 0;
+        }
+
+        .form-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-container h2 {
+            color: var(--primary);
+            font-size: 18px;
+            margin: 0 0 20px 0;
+            border-bottom: 2px solid rgba(255, 46, 99, 0.2);
+            padding-bottom: 10px;
+        }
+
+        .login-input {
+            background: rgba(255, 46, 99, 0.05);
+            border: 1px solid rgba(255, 46, 99, 0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #eaeaea;
+            font-family: Poppins;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .login-input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 46, 99, 0.1);
+            box-shadow: 0 0 15px rgba(255, 46, 99, 0.2);
+        }
+
+        .login-input::placeholder {
+            color: #666;
+        }
+
+        .login-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            background: #ff1a4d;
+            box-shadow: 0 0 20px rgba(255, 46, 99, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .toggle-text {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .toggle-link {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        .toggle-link:hover {
+            color: #ff1a4d;
+        }
+
+        #contacts-list {
+            background: rgba(255, 46, 99, 0.05);
+            border: 1px solid rgba(255, 46, 99, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .contact-item {
+            background: rgba(255, 46, 99, 0.1);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .contact-item strong {
+            color: var(--primary);
+        }
+
+        /* ─── ADMIN MODE STYLES ─── */
+        .admin-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff2e63 0%, #ff6b6b 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(255, 46, 99, 0.5);
+            animation: adminGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes adminGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 46, 99, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(255, 46, 99, 0.8); }
+        }
+
+        #user-name-display.admin-user {
+            color: #ff6b6b;
+            font-weight: 700;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="particles-js"></div>
+    <div id="status-banner"></div>
+
+    <!-- ─── LOGIN PORTAL ─── -->
+    <div id="login-portal" class="login-portal">
+        <div class="login-container">
+            <h1 class="login-title">🛡️ SheGuard</h1>
+            <p class="login-subtitle">Women's Safety Wearable System</p>
+            
+            <!-- Registration Tab -->
+            <div id="register-form" class="form-container">
+                <h2>Create Account</h2>
+                <input type="text" id="reg-name" placeholder="Your Name" class="login-input">
+                <input type="tel" id="reg-phone" placeholder="Phone (e.g. +91 98765 43210)" class="login-input">
+                <input type="password" id="reg-password" placeholder="Password" class="login-input">
+                <button onclick="registerUser()" class="login-btn">Register</button>
+                <p class="toggle-text">Already have account? <span onclick="toggleAuthMode()" class="toggle-link">Login</span></p>
+            </div>
+            
+            <!-- Login Tab -->
+            <div id="login-form" class="form-container" style="display:none;">
+                <h2>Login</h2>
+                <input type="tel" id="login-phone" placeholder="Phone Number" class="login-input">
+                <input type="password" id="login-password" placeholder="Password" class="login-input">
+                <button onclick="loginUser()" class="login-btn">Login</button>
+                <p class="toggle-text">Don't have account? <span onclick="toggleAuthMode()" class="toggle-link">Register</span></p>
+            </div>
+
+            <!-- Emergency Contacts Setup -->
+            <div id="contacts-form" class="form-container" style="display:none;">
+                <h2>Add Emergency Contacts</h2>
+                <p style="color:#aaa; font-size:13px; margin-bottom:15px;">Add your parent's or trusted contact's number</p>
+                <input type="text" id="contact-name" placeholder="Contact Name (e.g. Mom)" class="login-input">
+                <input type="tel" id="contact-phone" placeholder="Contact Phone Number" class="login-input">
+                <input type="text" id="contact-relation" placeholder="Relation (e.g. Mother)" class="login-input">
+                <button onclick="addEmergencyContact()" class="login-btn">Add Contact</button>
+                <button onclick="skipContacts()" class="login-btn" style="background:#555; margin-top:10px;">Skip & Continue</button>
+                <div id="contacts-list" style="margin-top:20px;"></div>
+            </div>
+
+            <!-- Admin Setup -->
+            <div id="admin-setup-form" class="form-container" style="display:none;">
+                <h2>🔐 Admin Setup</h2>
+                <p style="color:#aaa; font-size:13px; margin-bottom:15px;">Enable admin access with one click</p>
+                <button onclick="setupAdminDirect()" class="login-btn" style="background: linear-gradient(135deg, #ff2e63, #ff6b6b); font-size:16px; padding:14px;">✅ Enable Admin Access</button>
+                <p style="color:#888; font-size:12px; margin-top:15px; text-align:center;">or</p>
+                <button onclick="skipAdmin()" class="login-btn" style="background:#555; margin-top:10px;">👤 Continue as Regular User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── MAIN APP (Hidden until login) ─── -->
+    <div id="main-app" style="display:none;">
+    <div id="particles-js"></div>
+    <div id="status-banner"></div>
+
+    <header>
+        <div class="logo">SHEGUARD</div>
+        <nav>
+            <a href="#product">Device</a>
+            <a href="#map-section">Safety Map</a>
+            <a href="#features">Features</a>
+            <a href="#app">Mobile App</a>
+            <a href="#demo">Demo</a>
+            <a href="#stats-section">Stats</a>
+        </nav>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <span id="user-name-display" style="color: var(--primary); font-weight:600; font-size:13px;">User</span>
+            <span id="admin-status-display"></span>
+            <button onclick="logout()" style="background:rgba(255,46,99,0.2); border:1px solid var(--primary); color:var(--primary); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px;">Logout</button>
+        </div>
+    </header>
+
+    <!-- Live stats bar -->
+    <div class="stats-bar">
+        <div class="stat"><div class="val" id="stat-sos">—</div><div class="lbl">Active SOS</div></div>
+        <div class="stat"><div class="val" id="stat-incidents">—</div><div class="lbl">Incidents Logged</div></div>
+        <div class="stat"><div class="val" id="stat-alerts">—</div><div class="lbl">Alerts Sent</div></div>
+        <div class="stat"><div class="val" id="stat-users">—</div><div class="lbl">Users Protected</div></div>
+        <div class="stat" style="font-size:13px; color:#888; display:flex; align-items:center">
+            <span id="connection-dot"></span><span id="connection-label">Connecting…</span>
+        </div>
+    </div>
+
+    <section class="hero visible">
+        <h1>Smart <span class="glow">Safety</span> Watch</h1>
+        <p>SheGuard is an AI powered wearable watch that protects women by sending instant GPS alerts, detecting unsafe zones and notifying emergency contacts.</p>
+        <button class="primary" id="sos-btn" onclick="triggerSOS()">🚨 Activate SOS</button>
+        <button class="secondary" onclick="document.getElementById('product').scrollIntoView({behavior:'smooth'})">View Device</button>
+        <div class="product" id="product">
+            <div class="bracelet" style="width: 140px; height: 160px; border-radius: 24px; border-width: 8px; box-shadow: 0 0 35px rgba(255,46,99,.7), inset 0 0 15px rgba(255,46,99,.3);"></div>
+        </div>
+    </section>
+
+    <section id="map-section">
+        <div class="section-title">AI Crime Heatmap – Vijaywada Station</div>
+        <div id="map"></div>
+        <div class="map-label">
+            Heatmap shows risky zones from incident reports &nbsp;|&nbsp;
+            <button class="secondary" style="padding:8px 18px;font-size:13px;margin:0 0 0 10px" onclick="reportIncident()">+ Report Incident</button>
+        </div>
+    </section>
+
+    <section id="features">
+        <div class="section-title">Key Features</div>
+        <div class="features">
+            <div class="card"><h3>Instant SOS</h3><p>Hidden trigger sends emergency alert instantly.</p></div>
+            <div class="card"><h3>Live GPS Tracking</h3><p>User location appears on safety map in real time.</p></div>
+            <div class="card"><h3>AI Crime Detection</h3><p>Heatmap identifies high risk campus zones.</p></div>
+            <div class="card"><h3>Voice Activation</h3><p>Trigger safety system with voice command.</p></div>
+            <div class="card"><h3>Smart Alarm</h3><p>Loud alarm alerts nearby people immediately.</p></div>
+            <div class="card"><h3>Emergency Sharing</h3><p>Contacts receive real time GPS location updates.</p></div>
+        </div>
+    </section>
+
+    <section id="app">
+        <div class="section-title">Mobile App Preview</div>
+        <div class="app-preview">
+            <div class="phone"><div class="screen">GPS TRACKING<br><br>Live location<br><br><span id="app-lat">—</span><br><span id="app-lng">—</span></div></div>
+            <div class="phone"><div class="screen">SOS ALERT<br><br><span id="app-sos-status">Standby</span></div></div>
+            <div class="phone"><div class="screen">SAFE ROUTE<br><br>AI navigation<br><br><span id="app-safety">Checking…</span></div></div>
+        </div>
+    </section>
+
+    <section id="demo">
+        <div class="section-title">Prototype Demo</div>
+        <div class="demo">
+            <p>Enter emergency contact to simulate an alert to your contacts.</p>
+            <input type="text" id="contact-input" placeholder="Emergency Contact Number (e.g. +91 98765 43210)">
+            <input type="text" id="contact-name" placeholder="Your Name (optional)">
+            <button class="primary" id="alert-btn" onclick="sendAlert()">📡 Send Emergency Alert</button>
+            <p style="color:#555;font-size:13px;margin-top:16px">Alert is logged to the backend and simulated via the API.</p>
+        </div>
+    </section>
+
+    <section id="stats-section">
+        <div class="section-title">Live Backend Stats</div>
+        <div class="features" id="stats-cards">
+            <div class="card"><h3>Total SOS Events</h3><p id="sc-total-sos">Loading…</p></div>
+            <div class="card"><h3>High Risk Zones</h3><p id="sc-high-risk">Loading…</p></div>
+            <div class="card"><h3>Total Incidents</h3><p id="sc-incidents">Loading…</p></div>
+            <div class="card"><h3>Alerts Dispatched</h3><p id="sc-alerts">Loading…</p></div>
+        </div>
+    </section>
+
+    <!-- ─── MOBILE APP DOWNLOAD ─── -->
+    <section id="download-section">
+        <div class="section-title">📱 Download Mobile App</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px; max-width: 600px; margin: 0 auto;">
+            <!-- iOS App -->
+            <div style="background: rgba(255, 46, 99, 0.1); border: 2px solid rgba(255, 46, 99, 0.2); border-radius: 16px; padding: 30px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px;">🍎</div>
+                <h3 style="color: white; margin: 0 0 10px 0;">iOS App</h3>
+                <p style="color: #aaa; font-size: 13px; margin: 0 0 20px 0;">iPhone & iPad</p>
+                <a href="https://apps.apple.com/app/sheguard" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #000, #333); color: white; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.3s;">
+                    Download on App Store
+                </a>
+            </div>
+
+            <!-- Android App -->
+            <div style="background: rgba(76, 175, 80, 0.1); border: 2px solid rgba(76, 175, 80, 0.2); border-radius: 16px; padding: 30px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px;">🤖</div>
+                <h3 style="color: white; margin: 0 0 10px 0;">Android App</h3>
+                <p style="color: #aaa; font-size: 13px; margin: 0 0 20px 0;">Android Devices</p>
+                <a href="https://play.google.com/store/apps/details?id=com.sheguard" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #4CAF50, #66BB6A); color: white; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.3s;">
+                    Get on Google Play
+                </a>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; padding: 20px; background: rgba(255, 46, 99, 0.05); border-radius: 12px; border-left: 4px solid var(--primary);">
+            <p style="margin: 0; color: #aaa; font-size: 13px;">
+                ✨ <strong>Available Now!</strong> — Full GPS tracking, SOS alerts, and emergency contact notifications available on mobile.
+            </p>
+        </div>
+    </section>
+
+    <!-- ─── ADMIN DASHBOARD (Only visible to admins) ─── -->
+    <section id="admin-section" style="display:none;">
+        <div class="section-title">👨‍💼 ADMIN DASHBOARD</div>
+        
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; margin-bottom:40px;">
+            <div class="card">
+                <h3>Total Users</h3>
+                <p id="admin-total-users" style="font-size:32px; color: var(--primary); font-weight:bold;">—</p>
+            </div>
+            <div class="card">
+                <h3>Active SOS</h3>
+                <p id="admin-active-sos" style="font-size:32px; color: #ff6b6b; font-weight:bold;">—</p>
+            </div>
+            <div class="card">
+                <h3>Total SOS Events</h3>
+                <p id="admin-total-sos" style="font-size:32px; color: #ffa500; font-weight:bold;">—</p>
+            </div>
+            <div class="card">
+                <h3>Total Incidents</h3>
+                <p id="admin-total-incidents" style="font-size:32px; color: #4ade80; font-weight:bold;">—</p>
+            </div>
+        </div>
+
+        <div style="background: rgba(255, 46, 99, 0.1); border: 1px solid rgba(255, 46, 99, 0.2); border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+            <h3 style="color: var(--primary); margin-top: 0;">📊 All Users (System-wide)</h3>
+            <div id="admin-users-list" style="max-height: 400px; overflow-y: auto; font-size: 13px;">
+                Loading users...
+            </div>
+        </div>
+
+        <div style="background: rgba(255, 46, 99, 0.05); border: 1px solid rgba(255, 46, 99, 0.15); border-radius: 12px; padding: 25px;">
+            <h3 style="color: var(--primary); margin-top: 0;">🚨 Recent SOS Events</h3>
+            <div id="admin-sos-list" style="max-height: 400px; overflow-y: auto; font-size: 13px;">
+                Loading SOS events...
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>© 2026 SheGuard | Women Safety Hackathon Project | Backend: Python Flask + SQLite + WebSocket</p>
+    </footer>
+
+    <!-- ─── AI CHATBOT ─── -->
+    <div id="chat-wrapper">
+        <div id="chat-window">
+            <div class="chat-header">
+                <h3>🛡️ Safety Assistant</h3>
+                <button onclick="toggleChat()" style="background:none; border:none; color:#666; cursor:pointer; font-size:20px;">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-body">
+                <div class="msg msg-ai">Hello! I am SheGuard AI. How can I help you stay safe today?</div>
+            </div>
+            <div id="chat-typing" class="typing" style="padding-left: 20px;">AI is typing...</div>
+            <form class="chat-footer" onsubmit="handleChatSubmit(event)">
+                <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
+                <button type="submit" id="chat-send">➤</button>
+            </form>
+        </div>
+        <button id="chat-btn" onclick="toggleChat()">🤖</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ─── Config ───────────────────────────────────────────────────────────
+        const API    = window.location.hostname === 'localhost' 
+            ? 'http://localhost:5000/api'
+            : `http://${window.location.hostname}:5000/api`;
+        const WS_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:5000'
+            : `http://${window.location.hostname}:5000`;
+
+        // ─── Device ID (must be declared before socket listeners) ─────────────
+        const deviceId = "wearable-demo-001";
+
+        // ─── Status Banner ────────────────────────────────────────────────────
+        function showBanner(msg, duration = 3500) {
+            const b = document.getElementById("status-banner");
+            b.textContent = msg;
+            b.style.display = "block";
+            clearTimeout(b._timer);
+            b._timer = setTimeout(() => { b.style.display = "none"; }, duration);
+        }
+
+        function setConnectionStatus(connected, label) {
+            const dot = document.getElementById("connection-dot");
+            dot.classList.toggle("connected", connected);
+            document.getElementById("connection-label").textContent = label;
+        }
+
+        // ─── WebSocket Connection ─────────────────────────────────────────────
+        // Correct Socket.IO namespace: pass it as part of the URL, not options
+        let socket;
+        try {
+            socket = io(WS_URL + "/safety", {
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                reconnectionAttempts: 5,
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on("connect", () => {
+                setConnectionStatus(true, "Live Connected");
+                console.log("[WS] Connected to /safety namespace");
+            });
+
+            socket.on("disconnect", (reason) => {
+                setConnectionStatus(false, "Disconnected");
+                console.warn("[WS] Disconnected:", reason);
+            });
+
+            socket.on("connect_error", (err) => {
+                setConnectionStatus(false, "Backend Offline");
+                console.warn("[WS] Connection error:", err.message);
+            });
+
+            socket.on("connected", (data) => {
+                console.log("[WS] Server says:", data.message);
+            });
+
+            socket.on("sos_alert", (data) => {
+                showBanner(`🚨 SOS from ${data.user_name} — Lat ${data.latitude.toFixed(4)}, Lng ${data.longitude.toFixed(4)}`, 7000);
+                addSOSMarkerOnMap(data.latitude, data.longitude, data.user_name);
+                loadStats();
+            });
+
+            socket.on("sos_resolved", (data) => {
+                showBanner("✅ SOS event has been resolved.", 4000);
+                loadStats();
+            });
+
+            socket.on("location_update", (data) => {
+                // Only update map if it's our demo device
+                if (data.device_id === deviceId) {
+                    updateMovingMarker(data.latitude, data.longitude);
+                }
+            });
+
+            socket.on("new_incident", (data) => {
+                addIncidentCircle(data.latitude, data.longitude, data.severity);
+                showBanner("⚠️ New incident reported on campus heatmap!", 4000);
+                loadStats();
+            });
+
+        } catch (e) {
+            setConnectionStatus(false, "Backend Offline");
+            console.error("[WS] Failed to init socket:", e);
+        }
+
+        // ─── MAP ──────────────────────────────────────────────────────────────
+        let map = null;  // Initialize as null first
+        
+        function initializeMap() {
+            if (map) return;  // Prevent re-initialization
+            
+            const mapContainer = document.getElementById('map');
+            if (!mapContainer) return;  // Wait for DOM
+            
+            const srm = [16.5070, 80.6370];
+            map = L.map('map').setView(srm, 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            L.marker(srm).addTo(map).bindPopup("Vijaywada Railway Station").openPopup();
+
+            window.movingMarker = L.circleMarker(srm, { 
+                radius: 9, 
+                color: 'cyan', 
+                fillColor: 'cyan', 
+                fillOpacity: 0.7 
+            }).addTo(map);
+            window.movingMarker.bindPopup("📍 Your Wearable Device");
+        }
+
+        // Initialize map when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeMap);
+        } else {
+            initializeMap();
+        }
+
+        function updateMovingMarker(lat, lng) {
+            if (window.movingMarker) {
+                window.movingMarker.setLatLng([lat, lng]);
+            }
+        }
+
+        function addSOSMarkerOnMap(lat, lng, name) {
+            if (map) {
+                L.marker([lat, lng], {
+                    icon: L.divIcon({ className: '', html: '🚨', iconSize: [30, 30] })
+                }).addTo(map).bindPopup(`SOS: ${name}`).openPopup();
+            }
+        }
+
+        function addIncidentCircle(lat, lng, severity) {
+            if (!map) return;
+            const colors = { high: 'red', medium: 'orange', low: 'yellow' };
+            L.circle([lat, lng], {
+                radius: 100, 
+                color: colors[severity] || 'red',
+                fillColor: colors[severity] || 'red', 
+                fillOpacity: 0.3
+            }).addTo(map);
+        }
+
+        // Load incidents from backend and draw on map
+        async function loadIncidents() {
+            try {
+                const res = await fetch(`${API}/incidents`);
+                const incidents = await res.json();
+                incidents.forEach(inc => addIncidentCircle(inc.latitude, inc.longitude, inc.severity));
+            } catch (e) {
+                // Backend not running – use fallback static data
+                const fallback = [
+                    [16.4955, 80.5003, 'high'],
+                    [16.4975, 80.4988, 'medium'],
+                    [16.4960, 80.4979, 'high'],
+                    [16.4972, 80.5010, 'medium'],
+                ];
+                fallback.forEach(z => addIncidentCircle(z[0], z[1], z[2]));
+            }
+        }
+        loadIncidents();
+
+        // Device movement & stats updates disabled to prevent blinking
+        // Users can trigger manual updates via buttons
+
+        // ─── SOS ──────────────────────────────────────────────────────────────
+        async function triggerSOS() {
+            const btn = document.getElementById("sos-btn");
+            btn.classList.add("sos-active");
+            btn.textContent = "⏳ Sending SOS…";
+
+            if (!navigator.geolocation) {
+                sendSOSToBackend(srm[0], srm[1]);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                pos => sendSOSToBackend(pos.coords.latitude, pos.coords.longitude),
+                ()  => sendSOSToBackend(srm[0], srm[1])
+            );
+        }
+
+        async function sendSOSToBackend(lat, lng) {
+            const btn = document.getElementById("sos-btn");
+            document.getElementById("app-sos-status").textContent = "🚨 SOS ACTIVE";
+
+            try {
+                // Fetch emergency contacts for current user
+                let contactPhones = [];
+                if (currentUser && currentUser.id) {
+                    try {
+                        const contactsRes = await fetch(`${API}/contacts/${currentUser.id}`);
+                        const contacts = await contactsRes.json();
+                        contactPhones = contacts.map(c => c.phone);
+                    } catch (e) {
+                        console.log("No emergency contacts found");
+                    }
+                }
+
+                const SOSData = {
+                    user_id: currentUser ? currentUser.id : "anonymous",
+                    user_name: currentUser ? currentUser.name : "Unknown User",
+                    latitude: lat,
+                    longitude: lng,
+                    contacts: contactPhones
+                };
+
+                console.log("[SOS] Sending alert with data:", SOSData);
+
+                const res = await fetch(`${API}/sos`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(SOSData)
+                });
+                const data = await res.json();
+                showBanner(`🚨 SOS triggered!\n📞 Parents: ${data.parents_alerted}\n🚔 Police: ${data.police_station}`, 6000);
+            } catch (e) {
+                showBanner("🚨 SOS triggered! (Check backend connection)", 4000);
+            }
+
+            setTimeout(() => {
+                btn.classList.remove("sos-active");
+                btn.textContent = "🚨 Activate SOS";
+                document.getElementById("app-sos-status").textContent = "Standby";
+            }, 8000);
+        }
+
+        // ─── Report Incident ──────────────────────────────────────────────────
+        async function reportIncident() {
+            const desc = prompt("Describe the incident (e.g. 'Poorly lit area'):");
+            if (!desc) return;
+            const severity = prompt("Severity? (low / medium / high)", "medium");
+
+            try {
+                const res = await fetch(`${API}/incidents`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_id: currentUser ? currentUser.id : "anonymous",
+                        latitude: srm[0] + (Math.random() - 0.5) / 200,
+                        longitude: srm[1] + (Math.random() - 0.5) / 200,
+                        description: desc,
+                        severity: severity || "medium"
+                    })
+                });
+                const data = await res.json();
+                showBanner("✅ Incident reported! Only you can see it in your history.");
+                addIncidentCircle(data.incident.latitude, data.incident.longitude, data.incident.severity);
+            } catch (e) {
+                showBanner("⚠️ Backend offline. Incident not saved.");
+            }
+        }
+
+        // ─── Send Alert ───────────────────────────────────────────────────────
+        async function sendAlert() {
+            const contact = document.getElementById("contact-input").value.trim();
+            if (!contact) { showBanner("⚠️ Please enter a contact number."); return; }
+
+            const btn = document.getElementById("alert-btn");
+            btn.textContent = "⏳ Sending…";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API}/alert/send`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contact: contact,
+                        message: `SOS! ${document.getElementById("contact-name").value || "Someone"} needs help. Please respond immediately.`,
+                        latitude: srm[0],
+                        longitude: srm[1]
+                    })
+                });
+                const data = await res.json();
+                showBanner(`📡 ${data.message}`);
+                loadStats();
+            } catch (e) {
+                showBanner("📡 Emergency alert simulated! (Backend offline)");
+            }
+
+            setTimeout(() => { btn.textContent = "📡 Send Emergency Alert"; btn.disabled = false; }, 3000);
+        }
+
+        // ─── AI CHATBOT LOGIC ────────────────────────────────────────────────
+        const chatWindow = document.getElementById("chat-window");
+        const chatMessages = document.getElementById("chat-messages");
+        const chatInput = document.getElementById("chat-input");
+        const chatTyping = document.getElementById("chat-typing");
+        const chatBtn = document.getElementById("chat-btn");
+
+        function toggleChat() {
+            const isOpen = chatWindow.style.display === "flex";
+            chatWindow.style.display = isOpen ? "none" : "flex";
+            chatBtn.classList.toggle("active", !isOpen);
+            chatBtn.innerHTML = isOpen ? "🤖" : "×";
+            if (!isOpen) chatInput.focus();
+        }
+
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            // Add user message to UI
+            addMessage(text, "user");
+            chatInput.value = "";
+
+            // Show typing indicator
+            chatTyping.style.display = "block";
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const res = await fetch(`${API}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text })
+                });
+
+                if (!res.ok) throw new Error("API failure");
+
+                const data = await res.json();
+                chatTyping.style.display = "none";
+                addMessage(data.response, "ai");
+
+            } catch (err) {
+                chatTyping.style.display = "none";
+                addMessage("I'm having trouble connecting to my brain. Please try again or use the SOS button if urgent.", "ai");
+                console.error("Chat error:", err);
+            }
+        }
+
+        function addMessage(text, side) {
+            const m = document.createElement("div");
+            m.className = `msg msg-${side}`;
+            m.textContent = text;
+            chatMessages.appendChild(m);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ─── Stats ────────────────────────────────────────────────────────────
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API}/stats`);
+                const s = await res.json();
+                document.getElementById("stat-sos").textContent      = s.active_sos;
+                document.getElementById("stat-incidents").textContent = s.total_incidents;
+                document.getElementById("stat-alerts").textContent    = s.alerts_sent;
+                document.getElementById("stat-users").textContent     = s.total_users;
+                document.getElementById("sc-total-sos").textContent   = s.total_sos;
+                document.getElementById("sc-high-risk").textContent   = s.high_risk_zones;
+                document.getElementById("sc-incidents").textContent   = s.total_incidents;
+                document.getElementById("sc-alerts").textContent      = s.alerts_sent;
+            } catch (e) {
+                document.getElementById("stat-sos").textContent = "—";
+            }
+        }
+        loadStats();
+        // Automatic stats refresh disabled to prevent blinking
+        // Stats load on page init and when actions occur
+
+        // ─── Scroll Animation ─────────────────────────────────────────────────
+        const sections = document.querySelectorAll("section");
+        window.addEventListener("scroll", () => {
+            sections.forEach(sec => {
+                if (sec.getBoundingClientRect().top < window.innerHeight - 100) sec.classList.add("visible");
+            });
+        });
+
+        // ─── Particles ────────────────────────────────────────────────────────
+        particlesJS("particles-js", {
+            particles: {
+                number: { value: 70 },
+                size: { value: 3 },
+                color: { value: "#ff2e63" },
+                line_linked: { enable: true, color: "#ff2e63" },
+                move: { speed: 1 }
+            }
+        });
+    </script>
+
+    <!-- ─── LOGIN MANAGEMENT ─── -->
+    <script>
+        let currentUser = JSON.parse(localStorage.getItem("sheGuardUser")) || null;
+
+        if (currentUser) {
+            showMainApp();
+        }
+
+        function toggleAuthMode() {
+            document.getElementById("login-form").style.display = 
+                document.getElementById("login-form").style.display === "none" ? "flex" : "none";
+            document.getElementById("register-form").style.display = 
+                document.getElementById("register-form").style.display === "none" ? "flex" : "none";
+        }
+
+        async function registerUser() {
+            const name = document.getElementById("reg-name").value.trim();
+            const phone = document.getElementById("reg-phone").value.trim();
+            const password = document.getElementById("reg-password").value;
+
+            if (!name || !phone || !password) {
+                alert("❌ Please fill all fields!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, phone, password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    alert("❌ " + data.error);
+                    return;
+                }
+
+                if (data.is_admin) {
+                    alert("🎉 " + data.message + "\n\n👨‍💼 You have ADMIN access!");
+                } else {
+                    alert("✅ Registration successful! Now login.");
+                }
+                document.getElementById("register-form").style.display = "none";
+                document.getElementById("login-form").style.display = "flex";
+                document.getElementById("login-phone").value = phone;
+            } catch (e) {
+                alert("❌ Error: " + e.message);
+            }
+        }
+
+        async function loginUser() {
+            const phone = document.getElementById("login-phone").value.trim();
+            const password = document.getElementById("login-password").value;
+
+            if (!phone || !password) {
+                alert("❌ Please enter phone and password!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone, password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    alert("❌ " + data.error);
+                    return;
+                }
+
+                currentUser = data.user;
+                localStorage.setItem("sheGuardUser", JSON.stringify(currentUser));
+                
+                // Check if admin - first registered user is automatically admin
+                if (currentUser.is_admin) {
+                    showMainApp(true);  // Show admin portal directly
+                } else {
+                    showContactsForm();  // Regular user - add emergency contacts
+                }
+            } catch (e) {
+                alert("❌ Login failed: " + e.message);
+            }
+        }
+
+        function showContactsForm() {
+            document.getElementById("login-form").style.display = "none";
+            document.getElementById("contacts-form").style.display = "flex";
+            document.getElementById("admin-setup-form").style.display = "none";
+            loadEmergencyContacts();
+        }
+
+        function showAdminSetupForm() {
+            document.getElementById("login-form").style.display = "none";
+            document.getElementById("admin-setup-form").style.display = "flex";
+            document.getElementById("contacts-form").style.display = "none";
+        }
+
+        async function setupAdminDirect() {
+            const ADMIN_SECRET = "sheguard-admin-2026";
+
+            try {
+                const res = await fetch(`${API}/admin/promote`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        user_id: currentUser.id, 
+                        secret_key: ADMIN_SECRET 
+                    })
+                });
+
+                const data = await res.json();
+                
+                if (res.ok) {
+                    alert("✅ Admin access enabled!");
+                    currentUser.is_admin = 1;
+                    localStorage.setItem("sheGuardUser", JSON.stringify(currentUser));
+                    showMainApp(true);
+                } else {
+                    alert("❌ Admin setup failed. Try again later.");
+                    console.error(data.error);
+                }
+            } catch (e) {
+                alert("❌ Connection error: " + e.message);
+            }
+        }
+
+        function skipAdmin() {
+            // Go to contacts setup instead
+            showContactsForm();
+        }
+
+        async function loadEmergencyContacts() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`${API}/contacts/${currentUser.id}`);
+                const contacts = await res.json();
+                const list = document.getElementById("contacts-list");
+                list.innerHTML = "";
+                contacts.forEach(c => {
+                    const div = document.createElement("div");
+                    div.className = "contact-item";
+                    div.innerHTML = `<strong>${c.name}</strong><br>${c.phone}<br><small>${c.relation || ""}</small>`;
+                    list.appendChild(div);
+                });
+            } catch (e) {
+                console.log("No contacts yet");
+            }
+        }
+
+        async function addEmergencyContact() {
+            const name = document.getElementById("contact-name").value.trim();
+            const phone = document.getElementById("contact-phone").value.trim();
+            const relation = document.getElementById("contact-relation").value.trim();
+
+            if (!name || !phone) {
+                alert("❌ Please fill contact name and phone!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/contacts/${currentUser.id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, phone, relation })
+                });
+
+                if (!res.ok) throw new Error("Failed to add contact");
+
+                alert("✅ Contact added!");
+                document.getElementById("contact-name").value = "";
+                document.getElementById("contact-phone").value = "";
+                document.getElementById("contact-relation").value = "";
+                loadEmergencyContacts();
+            } catch (e) {
+                alert("❌ Error: " + e.message);
+            }
+        }
+
+        function skipContacts() {
+            showMainApp();
+        }
+
+        function showMainApp(isAdmin = false) {
+            document.getElementById("login-portal").style.display = "none";
+            document.getElementById("main-app").style.display = "block";
+            
+            if (currentUser) {
+                const userDisplay = document.getElementById("user-name-display");
+                const adminDisplay = document.getElementById("admin-status-display");
+                
+                if (isAdmin || currentUser.is_admin) {
+                    userDisplay.classList.add("admin-user");
+                    userDisplay.textContent = `👨‍💼 ${currentUser.name}`;
+                    adminDisplay.innerHTML = '<span class="admin-badge">ADMIN ACCESS</span>';
+                    console.log(`[🔓 ADMIN ACCESS] Logged in as: ${currentUser.name}`);
+                    console.log(`[👨‍💼] You have full system access!`);
+                    loadAdminDashboard();
+                } else {
+                    userDisplay.textContent = currentUser.name;
+                    adminDisplay.innerHTML = '';
+                    console.log(`[Privacy] Logged in as: ${currentUser.name} | Your personal incidents are private to you!`);
+                }
+            }
+        }
+
+        async function loadAdminDashboard() {
+            const ADMIN_SECRET = "sheguard-admin-2026";
+            
+            // Show admin section
+            document.getElementById("admin-section").style.display = "block";
+            
+            try {
+                // Load stats
+                const statsRes = await fetch(`${API}/admin/stats?user_id=${currentUser.id}&secret_key=${ADMIN_SECRET}`);
+                const stats = await statsRes.json();
+                
+                if (statsRes.ok) {
+                    document.getElementById("admin-total-users").textContent = stats.total_users;
+                    document.getElementById("admin-total-sos").textContent = stats.total_sos_events;
+                    document.getElementById("admin-active-sos").textContent = stats.active_sos_events;
+                    document.getElementById("admin-total-incidents").textContent = stats.total_incidents;
+                }
+
+                // Load all users
+                const usersRes = await fetch(`${API}/admin/users?user_id=${currentUser.id}&secret_key=${ADMIN_SECRET}`);
+                const users = await usersRes.json();
+                
+                if (usersRes.ok) {
+                    const usersList = document.getElementById("admin-users-list");
+                    usersList.innerHTML = users.map(u => `
+                        <div style="padding: 12px; background: rgba(255,255,255,0.05); margin-bottom: 8px; border-radius: 6px; border-left: 3px solid var(--primary);">
+                            <strong>${u.name}</strong><br>
+                            <small>📞 ${u.phone}</small><br>
+                            <small style="color: #888;">ID: ${u.id}</small>
+                            ${u.is_admin ? '<br><span style="color: var(--primary); font-weight: bold;">👨‍💼 ADMIN</span>' : ''}
+                        </div>
+                    `).join('');
+                }
+
+                // Load recent SOS events
+                const sosRes = await fetch(`${API}/admin/sos-events?user_id=${currentUser.id}&secret_key=${ADMIN_SECRET}`);
+                const sosEvents = await sosRes.json();
+                
+                if (sosRes.ok && sosEvents.length > 0) {
+                    const sosList = document.getElementById("admin-sos-list");
+                    sosList.innerHTML = sosEvents.slice(0, 10).map(e => `
+                        <div style="padding: 12px; background: rgba(255,46,99,0.1); margin-bottom: 8px; border-radius: 6px; border-left: 3px solid #ff6b6b;">
+                            <strong style="color: #ff6b6b;">🚨 ${e.user_name}</strong><br>
+                            <small>📍 Location: ${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)}</small><br>
+                            <small>⏰ ${new Date(e.timestamp).toLocaleString()}</small><br>
+                            <small style="color: ${e.status === 'active' ? '#ff6b6b' : '#4ade80'};">Status: ${e.status.toUpperCase()}</small>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById("admin-sos-list").innerHTML = "No SOS events yet.";
+                }
+
+                showBanner(`👨‍💼 Admin Dashboard Ready | Total Users: ${stats.total_users}`, 4000);
+            } catch (e) {
+                console.error("Admin dashboard error:", e);
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem("sheGuardUser");
+            location.reload();
+        }
+
+        // Admin setup helper - call this from console to make yourself admin
+        async function promoteToAdmin(userId) {
+            const ADMIN_SECRET = "sheguard-admin-2026";
+            try {
+                const res = await fetch(`${API}/admin/promote`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: userId, secret_key: ADMIN_SECRET })
+                });
+                const data = await res.json();
+                console.log("✅ " + data.message);
+                if (res.ok) {
+                    alert("✅ You are now an admin! Please refresh the page.");
+                    // Update localStorage
+                    if (currentUser) {
+                        currentUser.is_admin = 1;
+                        localStorage.setItem("sheGuardUser", JSON.stringify(currentUser));
+                    }
+                }
+            } catch (e) {
+                console.error("❌ Error: " + e.message);
+            }
+        }
+
+        console.log("💡 To make a user admin, run: promoteToAdmin('user_id')");
+    </script>
+
+    </div> <!-- Close main-app -->
+
+</body>
+</html>
